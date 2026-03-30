@@ -758,6 +758,7 @@ func saveConversation(mods *Mods) error {
 			os.Stderr,
 			"\nConversation saved:",
 			stderrStyles().InlineCode.Render(config.cacheWriteToID[:sha1short]),
+			stderrStyles().Comment.Render(config.ModelFullName),
 			stderrStyles().Comment.Render(title),
 		)
 	}
