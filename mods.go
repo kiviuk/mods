@@ -131,9 +131,11 @@ func (m *Mods) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Config.cacheReadFromID = msg.ReadID
 		m.Config.API = msg.API
 		m.Config.Model = msg.Model
+		m.Config.ModelFullName = msg.ModelFullName
 
 		if !m.Config.Quiet {
-			m.anim = newAnim(m.Config.Fanciness, m.Config.StatusText, m.renderer, m.Styles)
+			label := expandStatusText(m.Config.StatusText, m.Config)
+			m.anim = newAnim(m.Config.Fanciness, label, m.renderer, m.Styles)
 			cmds = append(cmds, m.anim.Init())
 		}
 		m.state = configLoadedState
@@ -528,7 +530,7 @@ func (m *Mods) receiveCompletionStreamCmd(msg completionOutput) tea.Cmd {
 }
 
 type cacheDetailsMsg struct {
-	WriteID, Title, ReadID, API, Model string
+	WriteID, Title, ReadID, API, Model, ModelFullName string
 }
 
 func (m *Mods) findCacheOpsDetails() tea.Cmd {
@@ -576,12 +578,19 @@ func (m *Mods) findCacheOpsDetails() tea.Cmd {
 			}
 		}
 
+		_, modelFullName := resolveModelAlias(&Config{
+			Model: model,
+			API:   api,
+			APIs:  m.Config.APIs,
+		})
+
 		return cacheDetailsMsg{
-			WriteID: writeID,
-			Title:   title,
-			ReadID:  readID,
-			API:     api,
-			Model:   model,
+			WriteID:       writeID,
+			Title:         title,
+			ReadID:        readID,
+			API:           api,
+			Model:         model,
+			ModelFullName: modelFullName,
 		}
 	}
 }
@@ -699,6 +708,42 @@ func increaseIndent(s string) string {
 		lines[i] = "\t" + lines[i]
 	}
 	return strings.Join(lines, "\n")
+}
+
+func resolveModelAlias(cfg *Config) (aliasName, fullName string) {
+	aliasName = cfg.Model
+	fullName = cfg.Model
+	for _, api := range cfg.APIs {
+		if api.Name != cfg.API && cfg.API != "" {
+			continue
+		}
+		for name := range api.Models {
+			if name == cfg.Model {
+				fullName = name
+				return
+			}
+			if slices.Contains(api.Models[name].Aliases, cfg.Model) {
+				fullName = name
+				return
+			}
+		}
+	}
+	return
+}
+
+func expandStatusText(text string, cfg *Config) string {
+	if cfg == nil {
+		return text
+	}
+	text = strings.ReplaceAll(text, "{model_alias_name}", cfg.Model)
+	text = strings.ReplaceAll(text, "{model_full_name}", cfg.ModelFullName)
+	if cfg.Temperature != 0 {
+		text = strings.ReplaceAll(text, "{temp}", fmt.Sprintf("%.1f", cfg.Temperature))
+	} else {
+		text = strings.ReplaceAll(text, "{temp}", "")
+	}
+	text = strings.ReplaceAll(text, "{role}", cfg.Role)
+	return text
 }
 
 func (m *Mods) resolveModel(cfg *Config) (API, Model, error) {

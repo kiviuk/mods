@@ -55,7 +55,7 @@ var help = map[string]string{
 	"topp":              "TopP, an alternative to temperature that narrows response, from 0.0 to 1.0, -1.0 to disable",
 	"topk":              "TopK, only sample from the top K options for each subsequent token, -1 to disable",
 	"fanciness":         "Your desired level of fanciness",
-	"status-text":       "Text to show while generating",
+	"status-text":       "Text to show while generating (supports {model_alias_name}, {model_full_name}, {temp}, {role} placeholders)",
 	"settings":          "Open settings in your $EDITOR",
 	"dirs":              "Print the directories in which mods store its data",
 	"reset-settings":    "Backup your old settings file and reset everything to the defaults",
@@ -194,6 +194,7 @@ type Config struct {
 
 	openEditor                                         bool
 	cacheReadFromID, cacheWriteToID, cacheWriteToTitle string
+	ModelFullName                                      string
 }
 
 // MCPServerConfig holds configuration for an MCP server.

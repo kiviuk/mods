@@ -220,3 +220,85 @@ func TestCutPrompt(t *testing.T) {
 		})
 	}
 }
+
+func TestExpandStatusText(t *testing.T) {
+	tests := []struct {
+		name     string
+		text     string
+		config   *Config
+		expected string
+	}{
+		{
+			name:     "nil config",
+			text:     "Generating with {model_alias_name}",
+			config:   nil,
+			expected: "Generating with {model_alias_name}",
+		},
+		{
+			name:     "replace model_alias_name",
+			text:     "Generating with {model_alias_name}",
+			config:   &Config{Model: "4o"},
+			expected: "Generating with 4o",
+		},
+		{
+			name:     "replace model_full_name",
+			text:     "Generating with {model_full_name}",
+			config:   &Config{ModelFullName: "gpt-4o"},
+			expected: "Generating with gpt-4o",
+		},
+		{
+			name:     "replace all placeholders",
+			text:     "{model_alias_name}/{model_full_name} at {temp} as {role}",
+			config:   &Config{Model: "4o", ModelFullName: "gpt-4o", Temperature: 0.7, Role: "assistant"},
+			expected: "4o/gpt-4o at 0.7 as assistant",
+		},
+		{
+			name:     "zero temperature",
+			text:     "{model_alias_name} at {temp}",
+			config:   &Config{Model: "gpt-4", Temperature: 0},
+			expected: "gpt-4 at ",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, expandStatusText(tc.text, tc.config))
+		})
+	}
+}
+
+func TestResolveModelAlias(t *testing.T) {
+	tests := []struct {
+		name         string
+		config       *Config
+		wantAlias    string
+		wantFullName string
+	}{
+		{
+			name:         "exact match",
+			config:       &Config{Model: "gpt-4o", API: "openai", APIs: APIs{{Name: "openai", Models: map[string]Model{"gpt-4o": {Aliases: []string{"4o"}}}}}},
+			wantAlias:    "gpt-4o",
+			wantFullName: "gpt-4o",
+		},
+		{
+			name:         "alias match",
+			config:       &Config{Model: "4o", API: "openai", APIs: APIs{{Name: "openai", Models: map[string]Model{"gpt-4o": {Aliases: []string{"4o"}}}}}},
+			wantAlias:    "4o",
+			wantFullName: "gpt-4o",
+		},
+		{
+			name:         "no match",
+			config:       &Config{Model: "unknown", API: "openai", APIs: APIs{{Name: "openai", Models: map[string]Model{"gpt-4o": {Aliases: []string{"4o"}}}}}},
+			wantAlias:    "unknown",
+			wantFullName: "unknown",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			alias, fullName := resolveModelAlias(tc.config)
+			require.Equal(t, tc.wantAlias, alias)
+			require.Equal(t, tc.wantFullName, fullName)
+		})
+	}
+}
