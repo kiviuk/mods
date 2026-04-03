@@ -553,8 +553,12 @@ func (m *Mods) findCacheOpsDetails() tea.Cmd {
 			if found != nil {
 				readID = found.ID
 				if found.Model != nil && found.API != nil {
-					model = *found.Model
-					api = *found.API
+					if model == "" {
+						model = *found.Model
+					}
+					if api == "" {
+						api = *found.API
+					}
 				}
 			}
 		}
