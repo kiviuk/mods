@@ -189,6 +189,20 @@ func (c *convoDB) FindHEAD() (*Conversation, error) {
 	return &convo, nil
 }
 
+func (c *convoDB) findByExactID(result *[]Conversation, in string) error {
+	if err := c.db.Select(result, c.db.Rebind(`
+		SELECT
+		  *
+		FROM
+		  conversations
+		WHERE
+		  id = ?
+	`), in); err != nil {
+		return fmt.Errorf("findByExactID: %w", err)
+	}
+	return nil
+}
+
 func (c *convoDB) findByExactTitle(result *[]Conversation, in string) error {
 	if err := c.db.Select(result, c.db.Rebind(`
 		SELECT
@@ -252,7 +266,9 @@ func (c *convoDB) Find(in string) (*Conversation, error) {
 	var conversations []Conversation
 	var err error
 
-	if len(in) < sha1minLen {
+	if sha1reg.MatchString(in) {
+		err = c.findByExactID(&conversations, in)
+	} else if len(in) < sha1minLen {
 		err = c.findByExactTitle(&conversations, in)
 	} else {
 		err = c.findByIDOrTitle(&conversations, in)

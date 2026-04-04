@@ -15,6 +15,7 @@ import (
 
 	"github.com/atotto/clipboard"
 	timeago "github.com/caarlos0/timea.go"
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	glamour "github.com/charmbracelet/glamour/styles"
 	"github.com/charmbracelet/huh"
@@ -848,7 +849,25 @@ func askInfo() error {
 		}),
 	).
 		WithTheme(themeFrom(config.Theme)).
+		WithKeyMap(customKeymap()).
 		Run()
+}
+
+func customKeymap() *huh.KeyMap {
+	km := huh.NewDefaultKeyMap()
+	km.Text.Next = key.NewBinding(
+		key.WithKeys("tab"),
+		key.WithHelp("tab", "submit"),
+	)
+	km.Text.Submit = key.NewBinding(
+		key.WithKeys("tab"),
+		key.WithHelp("tab", "submit"),
+	)
+	km.Text.NewLine = key.NewBinding(
+		key.WithKeys("enter"),
+		key.WithHelp("enter", "new line"),
+	)
+	return km
 }
 
 //nolint:mnd
