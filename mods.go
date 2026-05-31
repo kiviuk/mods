@@ -232,6 +232,10 @@ func (m *Mods) View() string {
 		}
 	case responseState:
 		if !m.Config.Raw && isOutputTTY() {
+		// For show operations, always return raw content
+		if m.Config.Show != "" || m.Config.ShowLast {
+			return m.Output
+		}
 			if m.viewportNeeded() {
 				return m.glamViewport.View()
 			}
@@ -244,11 +248,13 @@ func (m *Mods) View() string {
 		}
 
 		m.contentMutex.Lock()
+		output := ""
 		for _, c := range m.content {
-			fmt.Print(c)
+			output += c
 		}
 		m.content = []string{}
 		m.contentMutex.Unlock()
+		return output
 	case doneState:
 		if !isOutputTTY() {
 			fmt.Printf("\n")
@@ -634,7 +640,19 @@ func (m *Mods) readFromCache() tea.Cmd {
 			return modsError{err, "There was an error loading the conversation."}
 		}
 
-		m.appendToOutput(proto.Conversation(messages).String())
+		content := proto.Conversation(messages).String()
+		
+		// For show operations when not in a TTY, write directly to stdout
+		if (m.Config.Show != "" || m.Config.ShowLast) && !isOutputTTY() {
+			fmt.Print(content)
+			return completionOutput{
+				errh: func(err error) tea.Msg {
+					return modsError{err: err}
+				},
+			}
+		}
+
+		m.appendToOutput(content)
 		return completionOutput{
 			errh: func(err error) tea.Msg {
 				return modsError{err: err}
