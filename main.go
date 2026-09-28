@@ -232,13 +232,13 @@ var (
 
 			// Handle --show/--show-last when output is not a TTY (piped/redirected)
 			if !isOutputTTY() && isShowing {
-					if config.Raw {
-							fmt.Print(mods.Output)
-					} else if mods.glamOutput != "" {
-							fmt.Print(mods.glamOutput)
-					} else {
-							fmt.Print(mods.Output)
-					}
+				if config.Raw {
+					fmt.Print(mods.Output)
+				} else if mods.glamOutput != "" {
+					fmt.Print(mods.glamOutput)
+				} else {
+					fmt.Print(mods.Output)
+				}
 			}
 
 			if isShowing {
