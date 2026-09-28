@@ -131,9 +131,11 @@ func (m *Mods) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Config.cacheReadFromID = msg.ReadID
 		m.Config.API = msg.API
 		m.Config.Model = msg.Model
+		m.Config.ModelFullName = msg.ModelFullName
 
 		if !m.Config.Quiet {
-			m.anim = newAnim(m.Config.Fanciness, m.Config.StatusText, m.renderer, m.Styles)
+			label := expandStatusText(m.Config.StatusText, m.Config)
+			m.anim = newAnim(m.Config.Fanciness, label, m.renderer, m.Styles)
 			cmds = append(cmds, m.anim.Init())
 		}
 		m.state = configLoadedState
@@ -230,6 +232,10 @@ func (m *Mods) View() string {
 		}
 	case responseState:
 		if !m.Config.Raw && isOutputTTY() {
+		// For show operations, always return raw content
+		if m.Config.Show != "" || m.Config.ShowLast {
+			return m.Output
+		}
 			if m.viewportNeeded() {
 				return m.glamViewport.View()
 			}
@@ -242,11 +248,13 @@ func (m *Mods) View() string {
 		}
 
 		m.contentMutex.Lock()
+		output := ""
 		for _, c := range m.content {
-			fmt.Print(c)
+			output += c
 		}
 		m.content = []string{}
 		m.contentMutex.Unlock()
+		return output
 	case doneState:
 		if !isOutputTTY() {
 			fmt.Printf("\n")
@@ -528,7 +536,7 @@ func (m *Mods) receiveCompletionStreamCmd(msg completionOutput) tea.Cmd {
 }
 
 type cacheDetailsMsg struct {
-	WriteID, Title, ReadID, API, Model string
+	WriteID, Title, ReadID, API, Model, ModelFullName string
 }
 
 func (m *Mods) findCacheOpsDetails() tea.Cmd {
@@ -551,8 +559,12 @@ func (m *Mods) findCacheOpsDetails() tea.Cmd {
 			if found != nil {
 				readID = found.ID
 				if found.Model != nil && found.API != nil {
-					model = *found.Model
-					api = *found.API
+					if model == "" {
+						model = *found.Model
+					}
+					if api == "" {
+						api = *found.API
+					}
 				}
 			}
 		}
@@ -576,12 +588,19 @@ func (m *Mods) findCacheOpsDetails() tea.Cmd {
 			}
 		}
 
+		_, modelFullName := resolveModelAlias(&Config{
+			Model: model,
+			API:   api,
+			APIs:  m.Config.APIs,
+		})
+
 		return cacheDetailsMsg{
-			WriteID: writeID,
-			Title:   title,
-			ReadID:  readID,
-			API:     api,
-			Model:   model,
+			WriteID:       writeID,
+			Title:         title,
+			ReadID:        readID,
+			API:           api,
+			Model:         model,
+			ModelFullName: modelFullName,
 		}
 	}
 }
@@ -621,7 +640,19 @@ func (m *Mods) readFromCache() tea.Cmd {
 			return modsError{err, "There was an error loading the conversation."}
 		}
 
-		m.appendToOutput(proto.Conversation(messages).String())
+		content := proto.Conversation(messages).String()
+		
+		// For show operations when not in a TTY, write directly to stdout
+		if (m.Config.Show != "" || m.Config.ShowLast) && !isOutputTTY() {
+			fmt.Print(content)
+			return completionOutput{
+				errh: func(err error) tea.Msg {
+					return modsError{err: err}
+				},
+			}
+		}
+
+		m.appendToOutput(content)
 		return completionOutput{
 			errh: func(err error) tea.Msg {
 				return modsError{err: err}
@@ -699,6 +730,42 @@ func increaseIndent(s string) string {
 		lines[i] = "\t" + lines[i]
 	}
 	return strings.Join(lines, "\n")
+}
+
+func resolveModelAlias(cfg *Config) (aliasName, fullName string) {
+	aliasName = cfg.Model
+	fullName = cfg.Model
+	for _, api := range cfg.APIs {
+		if api.Name != cfg.API && cfg.API != "" {
+			continue
+		}
+		for name := range api.Models {
+			if name == cfg.Model {
+				fullName = name
+				return
+			}
+			if slices.Contains(api.Models[name].Aliases, cfg.Model) {
+				fullName = name
+				return
+			}
+		}
+	}
+	return
+}
+
+func expandStatusText(text string, cfg *Config) string {
+	if cfg == nil {
+		return text
+	}
+	text = strings.ReplaceAll(text, "{model_alias_name}", cfg.Model)
+	text = strings.ReplaceAll(text, "{model_full_name}", cfg.ModelFullName)
+	if cfg.Temperature != 0 {
+		text = strings.ReplaceAll(text, "{temp}", fmt.Sprintf("%.1f", cfg.Temperature))
+	} else {
+		text = strings.ReplaceAll(text, "{temp}", "")
+	}
+	text = strings.ReplaceAll(text, "{role}", cfg.Role)
+	return text
 }
 
 func (m *Mods) resolveModel(cfg *Config) (API, Model, error) {

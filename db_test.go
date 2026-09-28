@@ -126,6 +126,18 @@ func TestConvoDB(t *testing.T) {
 		require.ErrorIs(t, err, errManyMatches)
 	})
 
+	t.Run("find by full hash ignores title matches", func(t *testing.T) {
+		db := testDB(t)
+		const testid2 = "fc5012d8c67073ea0a46a3c05488a0e1d87df74b"
+		require.NoError(t, db.Save(testid, "message 1", "openai", "gpt-4o"))
+		require.NoError(t, db.Save(testid2, testid, "openai", "gpt-4o"))
+
+		convo, err := db.Find(testid)
+		require.NoError(t, err)
+		require.Equal(t, testid, convo.ID)
+		require.Equal(t, "message 1", convo.Title)
+	})
+
 	t.Run("delete", func(t *testing.T) {
 		db := testDB(t)
 
